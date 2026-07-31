@@ -381,5 +381,5 @@ After 50,000 episodes of training:
 This project is created for educational purposes as part of SCS3305-IS3212 Robotics and Cognitive Systems course.
 
 ## Author
-
+R K K Jinendra
 Created for EV3 Robot Q-Learning Line Follower Project
