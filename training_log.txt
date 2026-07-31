@@ -1,0 +1,22 @@
+Q-Learning Line Follower - Training Log
+======================================================================
+
+Total Episodes: 50000
+Learning Rate (Alpha): 0.2
+Discount Factor (Gamma): 0.9
+Initial Epsilon: 1.0
+Final Epsilon: 0.01
+Total Training Time: 70.61 seconds
+
+Final Q-Table:
+State\Action | Left | Forward | Right
+----------------------------------------
+Black       | -97.82 |  -77.83 | -97.79
+Margin      | -89.10 |  -86.64 | -89.00
+White       | -91.83 |  -97.77 | -97.74
+
+Training Statistics (Last 1000 Episodes):
+Average Reward: -1248.68
+Average Steps: 136.50
+Min Reward: -1415.00
+Max Reward: -72.70
