@@ -215,6 +215,12 @@ def finetune(episodes=100):
     for episode in range(episodes):
         print("Fine-tune Episode", episode + 1)
 
+        ev3.screen.clear()
+        ev3.screen.draw_text(10, 30, "Fine-tuning")
+        ev3.screen.draw_text(
+            10, 55, "Episode " + str(episode + 1) + "/" + str(episodes)
+        )
+
         state = getState()
         totalReward = 0
 
@@ -357,7 +363,7 @@ def sensorRead():
 
 
 if __name__ == "__main__":
-    mode = "finetune"
+    mode = "run"
 
     if not verifySensors():
         print("Sensor verification failed! Check connections.")

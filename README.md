@@ -14,6 +14,10 @@ This project implements a Q-learning agent that learns to follow a white line on
 - **Real-time Deployment**: Pre-trained Q-table for immediate EV3 deployment
 - **Optional Fine-tuning**: Continue learning on the actual robot if needed
 - **Obstacle Avoidance**: Built-in obstacle detection and avoidance
+- **MicroPython v1.11 Compatible**: No f-strings or advanced formatting — runs on older EV3 MicroPython
+- **Automatic Sensor Verification**: Checks all sensors at startup before running
+- **Per-Episode Saving**: Q-table is saved after every fine-tuning episode, never lost on stop
+- **On-Screen Episode Display**: EV3 screen shows current episode during fine-tuning
 
 ## Project Structure
 
@@ -35,9 +39,13 @@ Assignment 2/
 The system uses Q-learning, a model-free reinforcement learning algorithm:
 
 - **States**: 3 states based on color sensor readings
-  - State 0 (Black): Sensor reading < 4 (off track)
-  - State 1 (Margin): 4 ≤ reading ≤ 18 (on line edge)
-  - State 2 (White): reading > 18 (center of line)
+  - State 0 (Black): Sensor reading < 7 (off track)
+  - State 1 (Margin): 7 ≤ reading ≤ 22 (on line edge)
+  - State 2 (White): reading > 22 (center of line)
+
+  Thresholds are calibrated for a white line on a black surface with measured
+  readings of black=3, edge=11, white=31. Adjust `BLACK_VALUE` and
+  `WHITE_VALUE` in `run_robot.py` if your surface differs.
 
 - **Actions**: 3 possible actions
   - Action 0: Turn left
@@ -144,10 +152,10 @@ OBSTACLE_SENSOR = Port.S4
 ```
 
 **Step 3: Set sensor thresholds**
-Adjust based on your actual sensor readings:
+Adjust based on your actual sensor readings (test with `mode = "sensor"` first):
 ```python
-WHITE_VALUE = 18  # Adjust based on your white line
-BLACK_VALUE = 4   # Adjust based on your black surface
+WHITE_VALUE = 22  # Midpoint between edge (11) and white (31)
+BLACK_VALUE = 7   # Midpoint between black (3) and edge (11)
 ```
 
 **Step 4: Choose operating mode**
@@ -172,10 +180,21 @@ mode = "finetune"
 ```
 
 This will:
-- Run 100 additional episodes on the actual robot
-- Update the Q-table with real sensor data
-- Save the updated Q-table
-- Then start line following
+- Load the existing `trained_qtable.json` (continues from current values)
+- Run fine-tuning episodes on the actual robot (default: 5,000)
+- Display the current episode on the EV3 screen (`Episode X/5000`)
+- Save the Q-table to `trained_qtable.json` **after every episode**
+- Then start line following automatically
+
+**How an episode is measured:** An episode ends when the accumulated reward
+exceeds 300. Rewards come from `executeActionLearn()`: landing on the margin
+(state 1) gives up to `+60`, landing off the line (state 0 or 2) gives `-10`.
+So an episode ≈ successfully following the line for several transitions.
+
+**Saving behavior:** The Q-table is written to disk after each episode finishes.
+If you stop the program at any point, all completed episodes are preserved —
+nothing is lost. Epsilon starts at `FINETUNE_EPSILON` (0.05) and decays by
+×0.95 each episode (minimum 0.01).
 
 ## Configuration
 
@@ -227,6 +246,62 @@ White        | -91.83  | -97.77  | -97.74
 
 Higher Q-values indicate better actions. The robot always chooses the action with the highest Q-value for the current state.
 
+### Q-Table File Format (JSON)
+
+The Q-table is stored as a JSON file (`trained_qtable.json`), a plain-text
+format that is compatible with both desktop Python and MicroPython (unlike
+`pickle`, which caused `UnicodeError` on the EV3). The file is a 3×3 list:
+
+```json
+[
+  [-97.82, -77.83, -97.79],
+  [-89.10, -86.64, -89.00],
+  [-91.83, -97.77, -97.74]
+]
+```
+
+The first index is the state (0=black, 1=margin, 2=white); the second index
+is the action (0=left, 1=forward, 2=right).
+
+## MicroPython v1.11 Compatibility
+
+The EV3 in this project runs **Pybricks MicroPython v1.11**, which does **not**
+support:
+
+- **f-strings** (`f"..."`) → `SyntaxError: invalid syntax`
+- **`.format()` with format specifiers** (e.g., `"{:.2f}".format(...)`)
+- **`str.capitalize()`** in some contexts
+
+`run_robot.py` therefore uses only basic, universally supported constructs:
+
+```python
+# Instead of:  print(f"{name:11} | {row[0]:5.2f} | ...")
+print(STATES[i], "|", row[0], "|", row[1], "|", row[2])
+
+# Instead of:  print("Episode {}".format(episode + 1))
+print("Episode", episode + 1)
+```
+
+**Rule of thumb:** when editing `run_robot.py`, use plain `print(...)` with
+comma-separated values and string concatenation with `+` and `str()`.
+
+## Config Detection
+
+Before following the line, the robot determines its orientation relative to
+the line using `getConfig()`. It turns left 40°, reads the state, turns right
+80°, reads the state, then turns back:
+
+- **Config 0**: left scan sees black (0), right scan sees white (2)
+- **Config 1**: left scan sees white (2), right scan sees black (0)
+
+The function also accepts margin states (1) to be tolerant of imperfect
+positioning, and prints debug output (`Left scan`, `Right scan`,
+`Config pattern`) to help diagnose issues.
+
+If config detection fails, `run()` automatically **retries up to 5 times**,
+turning 90° between attempts to search for the line edge. If it still fails,
+the robot stops and asks you to position it manually.
+
 ## Troubleshooting
 
 ### Robot not following line properly
@@ -256,8 +331,35 @@ Higher Q-values indicate better actions. The robot always chooses the action wit
 
 ### Obstacle detection issues
 
-1. **Check IR sensor**: Ensure obstacle sensor is connected to Port S1
+1. **Check IR sensor**: Ensure obstacle sensor is connected to Port **S4**
 2. **Adjust distance threshold**: Modify `DISTANCE_TO_OBSTACLE`
+
+### Sensor verification failed (OSError: [Errno 19] ENODEV)
+
+The program verifies all sensors at startup. If verification fails with
+`ENODEV`, a sensor is not detected on its expected port:
+
+- Color (light) sensor must be on Port **S1**
+- IR sensor must be on Port **S4**
+- Check that cables are fully seated
+- Use `mode = "sensor"` to test readings manually
+
+### Config error
+
+If `getConfig()` cannot recognize a valid orientation pattern, the robot
+retries (turning 90°) up to 5 times. To fix:
+
+1. Place the robot with the sensor **on the edge** of the line (reading ~11),
+   not fully on white or black
+2. Verify thresholds match your surface (`BLACK_VALUE`, `WHITE_VALUE`)
+3. Check the debug output (`Left scan`, `Right scan`, `Config pattern`) to
+   see what states are detected
+
+### Q-table not loading (UnicodeError / file errors)
+
+The Q-table must be the JSON file `trained_qtable.json`, **not** a pickle
+file. MicroPython cannot load `pickle` files created by desktop Python.
+Re-generate with `python train_sim.py` if the file is missing or corrupted.
 
 ## Performance Metrics
 

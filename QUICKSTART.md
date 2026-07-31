@@ -14,7 +14,7 @@
 
 3. **Check results:**
    - View `training_log.txt` for statistics
-   - Q-table saved in `trained_qtable.pkl`
+   - Q-table saved in `trained_qtable.json`
 
 ## For EV3 Robot Deployment
 
@@ -46,6 +46,20 @@
 
 **IMPORTANT:** Position the robot with the color sensor on the **edge** of the white line (not fully on white or black). If "Config error" appears, the robot will search for the line edge automatically up to 5 times.
 
+## For EV3 Fine-tuning
+
+To continue learning on the actual robot:
+
+```python
+# In run_robot.py, set:
+mode = "finetune"
+```
+
+- Loads the existing `trained_qtable.json`
+- Shows `Episode X/5000` on the EV3 screen
+- Saves the Q-table after **every** episode (progress is never lost if you stop)
+- An episode ends when accumulated reward exceeds 300
+
 ## Common Issues
 
 **Sensor verification failed at startup:**
@@ -73,8 +87,17 @@
 - Check sensor is facing the surface
 
 **Hitting obstacles:**
-- Verify IR sensor connection (Port S1)
+- Verify IR sensor connection (Port **S4**)
 - Adjust `DISTANCE_TO_OBSTACLE` threshold
+
+**Config error:**
+- Position robot with sensor on the **edge** of the line (reading ~11)
+- Robot auto-searches (turns 90°) up to 5 times before giving up
+- Check debug output: `Left scan`, `Right scan`, `Config pattern`
+
+**Q-table won't load (UnicodeError):**
+- Use `trained_qtable.json`, not a `.pkl` file
+- Regenerate with `python train_sim.py` if missing or corrupted
 
 ## File Descriptions
 
