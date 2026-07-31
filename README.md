@@ -382,4 +382,4 @@ This project is created for educational purposes as part of SCS3305-IS3212 Robot
 
 ## Author
 R K K Jinendra
-Created for EV3 Robot Q-Learning Line Follower Project
+- Created for EV3 Robot Q-Learning Line Follower Project
